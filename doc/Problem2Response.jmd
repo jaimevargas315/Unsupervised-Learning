@@ -1,0 +1,48 @@
+## Problem 2
+
+#### Part a)
+```julia
+include("../src/Problem2.jl")
+N_total = 500
+N_class = N_total ÷ 2 # 250 samples per class
+D_dim_task = 2 # 2D space (x, y)
+Sigma2_task = 3.0 # Variance for both distributions (σ²)
+
+# Mean Vectors (μ)
+μ1 = [0.0, 0.0]  # Center 1: origin
+μ2 = [5.0, 5.0]  # Center 2: (5, 5)
+
+# 1. Generate Samples for Class 1 (Centered at origin)
+X1_samples = circGauss(N_class, μ1, Sigma2_task)
+# Convert from Vector{Vector{Float64}} to (2 x 250) Matrix for plotting
+X1_matrix = hcat(X1_samples...) 
+
+# 2. Generate Samples for Class 2 (Centered at (5, 5))
+X2_samples = circGauss(N_class, μ2, Sigma2_task)
+# Convert from Vector{Vector{Float64}} to (2 x 250) Matrix for plotting
+X2_matrix = hcat(X2_samples...)
+
+# 3. Combine Data for Dataset
+# Combined_samples = [X1_matrix X2_matrix] (2 x 500 matrix)
+Combined_data = [X1_matrix X2_matrix]
+Labels = vcat(fill(1, N_class), fill(2, N_class)) # Labels: 1 for Class 1, 2 for Class 2
+
+plot_data = Combined_data' # Transpose to (500 x 2) for plotting
+using Plots
+
+p = scatter(
+    plot_data[:, 1], # x-coordinates (Dimension 1)
+    plot_data[:, 2], # y-coordinates (Dimension 2)
+    group = Labels, 
+    markersize = 3,
+    markerstrokewidth = 0,
+    title = "Multivariate Gaussian Samples (N=500)",
+    xlabel = "Dimension 1",
+    ylabel = "Dimension 2",
+    label = ["Class 1 (μ=[0, 0])" "Class 2 (μ=[5, 5])"],
+)
+
+# Display the plot object
+display(p)
+
+```

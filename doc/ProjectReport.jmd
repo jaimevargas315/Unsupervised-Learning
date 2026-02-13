@@ -1,0 +1,1015 @@
+## Problem 1
+
+```julia; echo=false
+# Complies the functions from src/Project_Datascience.jl
+# Include in all .jmd that use a function stored in the src folder
+filename = joinpath(@__DIR__, "..", "src", "Project_UnsupervisedLearning.jl")
+include(filename);
+```
+
+#### Part a)
+```julia
+using Plots
+include("../src/Problem1.jl")
+# 1. Define Data and Bin Sizes
+data = randn(1000) # 1000 points from a Gaussian distribution
+# Define three different bin sizes to compare: coarse, medium, and fine
+bin_sizes = [5, 50, 500] 
+
+# Initialize an array to hold the plots
+all_plots = []
+
+# 2. Loop Through Bin Sizes
+for num_bins in bin_sizes
+    # A. Run the histogram function with the current bin size
+    bin_counts, bin_centers = histo(data, num_bins)
+
+    # B. Create a plot for the current iteration
+    plot_title = "Bins = $num_bins"
+    
+    p = plot(bin_centers, bin_counts, 
+             seriestype = :bar,
+             linewidth = 0,
+             fillalpha = 0.7,
+             legend = false,
+             xlabel = "Value",
+             ylabel = "Count",
+             title = plot_title
+    )
+    
+    # C. Store the generated plot
+    push!(all_plots, p)
+end
+```
+#### Part b)
+```julia
+# 3. Display All Plots Side-by-Side
+# The `plot` function can arrange multiple plots using the `layout` keyword
+plot(all_plots..., layout = (length(bin_sizes),1), size = (1200, 1000)) 
+
+# accuracy of histogram increases with number of bins
+# but too many bins can lead to overfitting and noise
+```
+## Problem 2
+
+#### Part a)
+```julia
+include("../src/Problem2.jl")
+N_total = 500
+N_class = N_total ÷ 2 # 250 samples per class
+D_dim_task = 2 # 2D space (x, y)
+Sigma2_task = 3.0 # Variance for both distributions (σ²)
+
+# Mean Vectors (μ)
+μ1 = [0.0, 0.0]  # Center 1: origin
+μ2 = [5.0, 5.0]  # Center 2: (5, 5)
+
+# 1. Generate Samples for Class 1 (Centered at origin)
+X1_samples = circGauss(N_class, μ1, Sigma2_task)
+# Convert from Vector{Vector{Float64}} to (2 x 250) Matrix for plotting
+X1_matrix = hcat(X1_samples...) 
+
+# 2. Generate Samples for Class 2 (Centered at (5, 5))
+X2_samples = circGauss(N_class, μ2, Sigma2_task)
+# Convert from Vector{Vector{Float64}} to (2 x 250) Matrix for plotting
+X2_matrix = hcat(X2_samples...)
+
+# 3. Combine Data for Dataset
+# Combined_samples = [X1_matrix X2_matrix] (2 x 500 matrix)
+Combined_data = [X1_matrix X2_matrix]
+Labels = vcat(fill(1, N_class), fill(2, N_class)) # Labels: 1 for Class 1, 2 for Class 2
+
+plot_data = Combined_data' # Transpose to (500 x 2) for plotting
+using Plots
+
+p = scatter(
+    plot_data[:, 1], # x-coordinates (Dimension 1)
+    plot_data[:, 2], # y-coordinates (Dimension 2)
+    group = Labels, 
+    markersize = 3,
+    markerstrokewidth = 0,
+    title = "Multivariate Gaussian Samples (N=500)",
+    xlabel = "Dimension 1",
+    ylabel = "Dimension 2",
+    label = ["Class 1 (μ=[0, 0])" "Class 2 (μ=[5, 5])"],
+)
+
+# Display the plot object
+display(p)
+
+```
+## Problem 3
+```julia
+include("../src/Problem3.jl")
+# Define a small dataset (N=3 data points, D=2 dimensions)
+X_data = [
+    [1.0, 1.0],  # Point 1 (near μ1)
+    [8.0, 9.0],  # Point 2 (near μ2)
+    [3.0, 2.0]   # Point 3 (closer to μ1)
+]
+
+# Define K=2 cluster centers (μ1, μ2)
+Mu_centers = [
+    [2.0, 2.0],  # Center 1
+    [7.0, 7.0]   # Center 2
+]
+
+# Run the algorithm
+distances, indicators = compDistInd(X_data, Mu_centers)
+
+println("--- Test compDistInd Function ---")
+
+println("\nData Points (X_data):")
+display(X_data)
+
+println("\nCluster Centers (Mu_centers):")
+display(Mu_centers)
+
+println("\nDistance Matrix (d) [Row n is point n, Column k is center k]:")
+# Expected d[1, 1] = ||[1, 1] - [2, 2]|| = sqrt(1^2 + 1^2) = 1.414
+# Expected d[1, 2] = ||[1, 1] - [7, 7]|| = sqrt(6^2 + 6^2) = 8.485
+# Expected assignment for Point 1 is Center 1
+display(round.(distances, digits=3)) 
+
+println("\nIndicator Matrix (r) [True indicates closest center]:")
+# Expected r:
+# [True False]
+# [False True]
+# [True False]
+display(indicators)
+
+```
+## Problem 4
+
+#### Part a)
+
+#### Part b)
+```julia
+using Plots
+using LinearAlgebra
+using Statistics
+using Random
+using Plots
+using Images
+include("../src/Problem2.jl") 
+include("../src/Problem3.jl") 
+include("../src/Problem4.jl") 
+K_true = 2
+D_dim_task = 2
+Sigma2_task = 3.0
+μ_true = [[0.0, 0.0], [5.0, 5.0]]
+N_list = [10, 20, 30, 40, 50, 75, 100, 150, 250, 500]
+errors_b = Float64[]
+println("--- (b) Running Single Trial Error vs. N ---")
+
+for N_total in N_list
+    N_class = N_total ÷ 2
+    
+    # Data Generation
+    X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+    X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+    X_data = vcat(X1_samples, X2_samples)
+    
+    # K-means Execution
+    Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_true] 
+final_centers, _, _ = myKmeansBatch(X_data, Initial_centers, maxIter=100, verbose=false)
+    # Error Calculation (Matching Estimated to True Centers)
+    μ_hat_1 = final_centers[1]
+    μ_hat_2 = final_centers[2]
+
+    error1 = norm(μ_true[1] - μ_hat_1) + norm(μ_true[2] - μ_hat_2)
+    error2 = norm(μ_true[1] - μ_hat_2) + norm(μ_true[2] - μ_hat_1)
+    
+    min_error = min(error1, error2)
+    push!(errors_b, min_error)
+
+    println("N=$(N_total): Single Trial Error = $(round(min_error, digits=4))")
+end
+
+# Plotting
+p_b = plot(
+    N_list, 
+    errors_b, 
+    xlabel = "Number of Training Data Points (N)",
+    ylabel = "Total Centroid Recovery Error (Single Trial)",
+    title = "Part (b): K-means Error vs. Sample Size (Single Trial)",
+    seriestype = :scatter, 
+    marker = :circle,
+    line = (3, :solid),
+    label = "Recovery Error",
+    legend = :topright,
+    grid = :on
+)
+display(p_b)
+```
+#### Part c)
+```julia
+T=100        # Number of trials for averaging in part (c)
+avg_errors = Float64[] # Must be re-initialized for the new results
+println("\n--- (c) Running Averaged Trial Error vs. N (T=$T trials per N) ---")
+
+for N_total in N_list
+    N_class = N_total ÷ 2
+    total_error_N = 0.0
+    
+    for t in 1:T # T=100 trials loop
+        # 1. Data Generation (uses circGauss, μ_true, Sigma2_task)
+        X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+        X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+        X_data = vcat(X1_samples, X2_samples)
+        Random.shuffle!(X_data) 
+
+        # 2. K-means Execution (uses myKmeansBatch, K_true, D_dim_task)
+        Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_true] 
+        final_centers, _, _ = myKmeansBatch(X_data, Initial_centers, maxIter=100, verbose=false)
+
+        # 3. Error Calculation (uses norm, μ_true)
+        μ_hat_1 = final_centers[1]
+        μ_hat_2 = final_centers[2]
+
+        error1 = norm(μ_true[1] - μ_hat_1) + norm(μ_true[2] - μ_hat_2)
+        error2 = norm(μ_true[1] - μ_hat_2) + norm(μ_true[2] - μ_hat_1)
+        
+        total_error_N += min(error1, error2)
+    end
+    
+    avg_error_N = total_error_N / T
+    push!(avg_errors, avg_error_N)
+    println("N=$(N_total): Average Error = $(round(avg_error_N, digits=5))")
+end
+
+# Plotting (uses N_list, avg_errors)
+p_c = plot(
+    N_list, 
+    avg_errors, 
+    xlabel = "Number of Training Data Points (N)",
+    ylabel = "Average Total Centroid Recovery Error (T=$T Trials)",
+    title = "Part (c): K-means Error vs. Sample Size (Averaged)",
+    seriestype = :line, 
+    linewidth = 3,
+    marker = (:circle, 5),
+    label = "Average Error",
+    legend = :topright,
+    grid = :on
+)
+display(p_c)
+```
+
+#### Part d)
+```julia
+N_fixed = 50 
+T_trials = 500
+iter_counts = Int64[]
+println("\n--- (d) Running Convergence Analysis (N=$N_fixed, T=$T_trials) ---")
+
+for t in 1:T_trials
+    # 1. Data Generation (N=50)
+    N_class = N_fixed ÷ 2
+    X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+    X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+    X_data = vcat(X1_samples, X2_samples)
+    Random.shuffle!(X_data) 
+
+    # 2. K-means Execution
+    Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_true] 
+    
+    # Capture the iteration count (3rd return value)
+    _, _, iterations = myKmeansBatch(X_data, Initial_centers, maxIter=100, verbose=false)
+    
+    push!(iter_counts, iterations)
+end
+
+# 3. STATISTICAL ANALYSIS
+min_iter = minimum(iter_counts)
+max_iter = maximum(iter_counts)
+avg_iter = mean(iter_counts)
+
+println("\nConvergence Statistics (N=$N_fixed, T=$T_trials):")
+println("  Minimum Iterations: $min_iter")
+println("  Maximum Iterations: $max_iter")
+println("  Average Iterations: $(round(avg_iter, digits=2))")
+
+# 4. PLOTTING (Histogram)
+p_d = histogram(
+    iter_counts,
+    bins = 0.5:1.0:max_iter + 0.5, # Bins centered on integers
+    xlabel = "Number of Iterations to Converge",
+    ylabel = "Frequency (Count)",
+    title = "Part (d): K-means Convergence Iterations (N=$N_fixed)",
+    legend = false,
+    grid = :y
+)
+display(p_d)
+```
+#### Part e)
+```julia
+N_fixed_e = 500       # Fixed number of data points
+T_trials_e = 100      # Number of trials for averaging
+K_list = 2:10         # K ranges from 2 to 10
+
+function calcJ(D_nk::Matrix{Float64}, r::Matrix{Bool})
+    # Uses Boolean indexing to select only the squared distances corresponding 
+    # to the assigned cluster for each point, then sums them up.
+    return sum(D_nk[r])
+end
+
+avg_J_values = Float64[]
+println("\n--- (e) Running Objective Function J vs. K (N=$N_fixed_e, T=$T_trials_e) ---")
+
+# 1. Generate the single large dataset outside the K-loop (optional, but saves time)
+N_class = N_fixed_e ÷ 2
+X1_samples_e = circGauss(N_class, μ_true[1], Sigma2_task)
+X2_samples_e = circGauss(N_class, μ_true[2], Sigma2_task)
+X_data_e = vcat(X1_samples_e, X2_samples_e)
+
+for K in K_list
+    total_J_K = 0.0
+    
+    for t in 1:T_trials_e
+        # Shuffle data for a new random trial (ensures fresh initialization)
+        Random.shuffle!(X_data_e) 
+        
+        # 2. K-means Execution
+        Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K] 
+        final_centers, final_r, _ = myKmeansBatch(X_data_e, Initial_centers, maxIter=100, verbose=false)
+        
+        # 3. Calculate Final J value
+        # Recalculate D_nk based on the final centers for accurate J calculation
+        D_nk, _ = compDistInd(X_data_e, final_centers)
+        J_value = calcJ(D_nk, final_r) 
+        
+        total_J_K += J_value
+    end
+    
+    avg_J_K = total_J_K / T_trials_e
+    push!(avg_J_values, avg_J_K)
+    println("K=$K: Average J = $(round(avg_J_K, digits=2))")
+end
+
+# 4. PLOTTING
+p_e = plot(
+    collect(K_list), 
+    avg_J_values, 
+    xlabel = "Number of Centroids (K)",
+    ylabel = "Average Objective Function Value (J)",
+    title = "Part (e): K-means Cost Function vs. K (N=$N_fixed_e)",
+    seriestype = :line, 
+    linewidth = 3,
+    marker = (:circle, 5),
+    label = "Average Cost J",
+    legend = false,
+    grid = :y
+)
+display(p_e)
+```
+#### Part f)
+```julia
+
+function plot_clusters(X_data::Vector{Vector{Float64}}, r::Matrix{Bool}, 
+                       final_centers::Vector{Vector{Float64}}, run_num::Int)
+    
+    K = size(r, 2)
+    labels = [k for n in 1:size(r, 1) for k in 1:K if r[n, k]] # Convert r to vector labels
+    
+    # Extract coordinates for plotting
+    x_coords = [p[1] for p in X_data]
+    y_coords = [p[2] for p in X_data]
+    
+    # Extract center coordinates
+    cx_coords = [c[1] for c in final_centers]
+    cy_coords = [c[2] for c in final_centers]
+    
+    p = scatter(x_coords, y_coords, 
+                group = labels,
+                marker = (:circle, 3), 
+                alpha = 0.6,
+                legend = :none,
+                title = "Run $run_num: K=5 Clustering (Different Initialization)",
+                xlabel = "Dimension 1",
+                ylabel = "Dimension 2")
+    
+    # Overlay the final centroids
+    scatter!(p, cx_coords, cy_coords, 
+             marker = (:star5, 12, :black, 0.8), 
+             label = "Centroids",
+             series_annotations = text.(1:K, :bottom, :black))
+             
+    display(p)
+    return p
+end
+
+N_fixed_f = 500       # Fixed number of data points
+K_fixed_f = 5         # Fixed number of clusters
+num_runs = 3          # Perform clustering 3 times
+
+println("\n--- (f) Analyzing Effect of Initialization (N=$N_fixed_f, K=$K_fixed_f, 3 Runs) ---")
+
+# 1. Generate the single, fixed dataset
+N_class = N_fixed_f ÷ 2
+X1_samples_f = circGauss(N_class, μ_true[1], Sigma2_task)
+X2_samples_f = circGauss(N_class, μ_true[2], Sigma2_task)
+X_data_f = vcat(X1_samples_f, X2_samples_f) 
+# Note: The data is generated ONCE, but shuffled before each run to ensure 
+# the initial center selection (which uses shuffle/rand) is different.
+
+J_results = Float64[]
+
+for run in 1:num_runs
+    # The crucial step: The random shuffle here ensures the 
+    # myKmeansBatch initialization (selecting K random points) is different each time.
+    Random.shuffle!(X_data_f) 
+    
+    # 2. K-means Execution
+    Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_fixed_f] 
+    final_centers, final_r, _ = myKmeansBatch(X_data_f, Initial_centers, maxIter=100, verbose=false)
+    
+    # 3. Calculate Objective Function J for this run (for analysis)
+    D_nk, _ = compDistInd(X_data_f, final_centers)
+    J_value = calcJ(D_nk, final_r) 
+    push!(J_results, J_value)
+    
+    println("Run $run: Final J Value = $(round(J_value, digits=2))")
+    
+    # 4. Visualization (Produces 3 figures)
+    plot_clusters(X_data_f, final_r, final_centers, run)
+end
+
+println("\nSummary of J values: $J_results")
+```
+## Problem 5
+
+#### Part a)
+```julia
+
+using Plots
+using LinearAlgebra
+using Random
+using Statistics
+include("../src/Problem2.jl")
+include("../src/Problem5.jl")
+
+K_true = 2                # True number of clusters
+D_dim = 2                 # Dimension of data
+Sigma2_task = 3.0         # Variance (σ²) for both distributions
+μ_true = [[0.0, 0.0], [5.0, 5.0]] # True centers
+N_total = 500             # Total number of data points
+N_class = N_total ÷ 2     # Samples per class
+K_online = K_true         # Number of clusters for K-means
+
+eta_test = 0.1            # Initial learning rate (η)
+maxEpochs_test = 1000     # Increased max epochs for safety
+threshold_test = 1e-6     # Tighter convergence threshold
+verbose_test = true
+avg_epochs_list = Float64[]
+
+println("Generating data set (N=$N_total, K=$K_true, σ²=$Sigma2_task)...")
+X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+X_data = vcat(X1_samples, X2_samples)
+Random.shuffle!(X_data) # Shuffle data set for initial randomness
+
+# --- Initial Centroids Setup ---
+# The myKmeansOnline function initializes the centers internally, 
+# but it requires a pre-sized container 𝛍ₖ.
+initial_μ_k_container = [Vector{Float64}(undef, D_dim) for _ in 1:K_online]
+
+# --- Run Online K-means ---
+println("\nStarting Online K-means...")
+final_centers, epochs_taken = myKmeansOnline(
+    X_data, 
+    initial_μ_k_container, 
+    eta_test; 
+    maxIter=maxEpochs_test, 
+    tol=threshold_test, 
+    verbose=verbose_test
+)
+
+println("\n--- Results Summary ---")
+println("Online K-means converged in $epochs_taken epochs.")
+println("Final Centroids (μ̂):")
+for (i, center) in enumerate(final_centers)
+    println("  μ̂$i: $(round.(center, digits=4))")
+end
+println("\nTrue Centroids (μ):")
+for (i, center) in enumerate(μ_true)
+    println("  μ$i: $(round.(center, digits=4))")
+end
+
+
+T_trials_b = 30           # Number of trials for averaging
+maxEpochs_b = 100         # Maximum limit for epochs
+threshold_b = 1e-2        # Fixed convergence threshold
+verbose_b = false         # Disable verbose output inside the loop
+# Logarithmic range of eta: 1e-6, 1e-5.5, 1e-5, ..., 1e-0 (13 points)
+eta_list = 10.0 .^ range(-6.0, stop=0.0, length=13) 
+avg_epochs_list = Float64[]
+# Find the optimal eta (the one resulting in the minimum average epochs)
+
+for eta in eta_list
+    total_epochs_eta = 0
+    
+    for t in 1:T_trials_b
+        # 1. Data Generation (Generate fresh data for each trial for robustness)
+        X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+        X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+        X_data = vcat(X1_samples, X2_samples)
+        Random.shuffle!(X_data) 
+        
+        # 2. Initial Centroids Setup (Container for initialization inside the function)
+        initial_μ_k_container = [Vector{Float64}(undef, D_dim) for _ in 1:K_online]
+
+        # 3. Run Online K-means
+        _, epochs_taken = myKmeansOnline(
+            X_data, 
+            initial_μ_k_container, 
+            eta; 
+            maxIter=maxEpochs_b, 
+            tol=threshold_b, 
+            verbose=verbose_b
+        )
+        total_epochs_eta += epochs_taken
+    end
+    
+    avg_epochs = total_epochs_eta / T_trials_b
+    push!(avg_epochs_list, avg_epochs)
+    println("η = $eta: Avg Epochs = $(round(avg_epochs, digits=2))")
+end
+
+min_avg_epochs = minimum(avg_epochs_list)
+optimal_idx = findfirst(x -> x == min_avg_epochs, avg_epochs_list)
+optimal_eta = eta_list[optimal_idx]
+
+p_eta = plot(
+    eta_list, 
+    avg_epochs_list, 
+    xlabel = "Learning Rate η (Log Scale)",
+    ylabel = "Average Epochs to Converge (30 Trials)",
+    title = "Part (b): Online K-means Convergence Speed vs. η",
+    xscale = :log10, # Crucial for visualizing the wide range of eta
+    seriestype = :line, 
+    linewidth = 3,
+    marker = (:circle, 5),
+    label = "Avg Epochs",
+    legend = :bottomright,
+    grid = :on
+)
+
+# Annotate the optimal eta point on the plot
+scatter!(
+    p_eta, [optimal_eta], [min_avg_epochs], 
+    marker = (:star5, 12, :red, 0.8), 
+        label = "Optimal η = $(string(optimal_eta))"
+)
+
+display(p_eta)
+
+println("\n--- Optimal η Result ---")
+println("The optimal learning rate η is: $(string(optimal_eta))")
+println("Resulting in the minimum average epochs: $(round(min_avg_epochs, digits=2))")
+```
+## Problem 6
+```julia
+using Plots
+using LinearAlgebra
+using Statistics
+using Random
+using Images
+using Printf 
+
+include("../src/Problem4.jl") 
+include("../src/Problem2.jl") 
+include("../src/Problem3.jl") 
+
+const D_DIM = 3              # RGB color space is 3-dimensional (R, G, B)
+const MAX_ITER = 50          # Max iterations for Batch K-means
+const K_VALUES = [4, 8, 16]  # K values for image segmentation
+
+const FILENAME_1 = joinpath("data", "machine-learning-1.png") # Part a
+const FILENAME_2 = joinpath("data", "Nature-Brain.png")       # Part b
+const FILENAME_3 = joinpath("data", "nature-1.png")           # Part c
+
+"""
+    image_to_vectors(img)
+
+Converts a loaded color image into a Vector of Vectors (Xn), 
+where each inner vector is a 3D [R, G, B] pixel.
+"""
+function image_to_vectors(img)
+    # 1. Convert to a standard Float64 channel view and flatten
+    img_float = Float64.(channelview(img))
+    
+    # 2. Reshape: Flatten the image array into a 3 x N matrix (Channels x Pixels)
+    R, C = size(img)
+    # We take channels 1:3 (R, G, B) and ignore the 4th (Alpha) if it exists.
+    data_matrix = reshape(img_float[1:3, :, :], 3, R * C) 
+    
+    # 3. Convert to Vector of Vectors (N vectors of 3D points)
+    Xn = [data_matrix[:, i] for i in 1:size(data_matrix, 2)]
+    return Xn
+end
+
+"""
+    segment_image(k::Int, X_data::Vector{Vector{Float64}}, img::Matrix)
+
+Performs Batch K-means clustering and reconstructs the image.
+"""
+function segment_image(k::Int, X_data::Vector{Vector{Float64}}, img::Matrix)
+    N = length(X_data)
+    D = D_DIM
+    
+    # 1. Initialize Centroids (container for mutation)
+    Initial_centers = [Vector{Float64}(undef, D) for _ in 1:k] 
+    
+    # 2. Run Batch K-means 
+    final_centers, final_r, epochs = myKmeansBatch(X_data, Initial_centers, maxIter=MAX_ITER, verbose=false)
+    
+    # 3. Reconstruct Image Data (Vector Quantization)
+    R, C = size(img)
+    segmented_data_vectors = Vector{Vector{Float64}}(undef, N)
+    
+    # Replace each original pixel with its assigned centroid
+    for n in 1:N
+        assigned_k = findfirst(final_r[n, :])
+        segmented_data_vectors[n] = final_centers[assigned_k]
+    end
+    
+    # 4. Convert back to image format
+    segmented_data_matrix = hcat(segmented_data_vectors...)
+    segmented_channels = reshape(segmented_data_matrix, D, R, C)
+    
+    # Get the component type (e.g., N0f8) from the original image element type
+    ComponentType = eltype(eltype(img))
+    
+    # Force the color view to RGB (3-channel) and convert to Matrix
+    color_view = colorview(RGB{ComponentType}, ComponentType.(segmented_channels))
+    segmented_image = convert(Matrix, color_view)
+    
+    return segmented_image, epochs
+end
+
+"""
+    run_segmentation_task(filename::String, plot_title_prefix::String)
+
+Loads an image, performs Batch K-means segmentation for all K_VALUES, and returns a plot object.
+"""
+function run_segmentation_task(filename::String, plot_title_suffix::String)
+    # 1. Load the Image
+    println("Loading image: $filename...")
+    local img_original
+    try
+        img_original = load(filename) 
+    catch e
+        println("ERROR: Could not load the image file '$filename'.")
+        rethrow(e)
+    end
+
+    # 2. Prepare Data
+    X_data = image_to_vectors(img_original)
+
+    # 3. Perform Segmentation for K=4, K=8, and K=16
+    segmented_plots = Any[]
+    push!(segmented_plots, plot(img_original, title="Original - $(plot_title_suffix)"))
+
+    algorithm_name = "Batch K-means"
+    
+    for k in K_VALUES
+        segmented_image, epochs = segment_image(k, X_data, img_original)
+        println("K=$k ($algorithm_name): Segmentation complete in $epochs epochs.")
+        
+        # Calculate bits per pixel (log2(K))
+        bits_per_pixel = round(log2(k), digits=0) 
+        title_str = "K=$k ($(Int(bits_per_pixel)) bits/pixel). Epochs: $epochs"
+        push!(segmented_plots, plot(segmented_image, title=title_str))
+    end
+
+    # 4. Visualization
+    plot_obj = plot(
+        segmented_plots...,
+        layout = (2, 2),
+        size = (1000, 800),
+        plot_title = "Batch K-means Segmentation Results for $(plot_title_suffix)",
+        legend = false
+    )
+    return plot_obj
+end
+```
+#### Part a)
+``` julia
+p_batch1 = run_segmentation_task(FILENAME_1, "Image 1: Machine Learning")
+display(p_batch1)
+```
+#### Part b)
+``` julia
+
+```
+#### Part c)
+```julia
+
+```
+#### Part d)
+```julia
+
+```
+#### Part e)
+```julia
+
+```
+#### Part f)
+```julia
+
+```
+## Appendix: Source Code Listings
+##### Problem1.jl
+```julia; eval = false
+
+function histo(data_points::Vector{Float64}, num_bins::Int)
+    # 1. Determine Data Range
+    data_min = minimum(data_points)
+    data_max = maximum(data_points)
+    
+    # 2. Define Bin Centers (b_n)
+    # Note: The `range` function is Julia's equivalent to `linspace`
+    bin_centers = collect(range(data_min, stop=data_max, length=num_bins))
+    
+    # 3. Initialize Bin Counts (h_n)
+    bin_counts = zeros(Int, num_bins) # Use Int for counts
+    
+    M = length(data_points)
+
+    # 4. Double Loop for Nearest-Neighbor Assignment
+    for point_index in 1:M # Outer loop over data points (m)
+        current_point = data_points[point_index]
+        
+        # Temporary vector to store all distances (e_n)
+        distance_vector = zeros(num_bins)
+        
+        # Inner loop to calculate distance to every center (n)
+        for center_index in 1:num_bins
+            distance_vector[center_index] = abs(bin_centers[center_index] - current_point)
+        end
+        
+        # 5. Find Closest Bin (i)
+        # `argmin` finds the index of the minimum value
+        closest_center_index = argmin(distance_vector)
+        
+        # 6. Assign and Count (h_i <- h_i + 1)
+        bin_counts[closest_center_index] += 1
+    end
+    
+    # Return bin centers and counts
+    return bin_counts, bin_centers 
+end
+
+```
+##### Problem2.jl
+```julia; eval = false
+
+function circGauss(N::Integer,μ::Vector{Float64},σ²::Float64)
+    
+    dimension = length(μ)
+
+    #  Input Validation and Parameter Calculation
+    if σ² < 0
+        error("Variance (sigma^2) must be non-negative.")
+    end
+
+    # The standard deviation (sigma) is the scaling factor for N(0, 1) samples.
+    std_dev = sqrt(σ²)
+
+    # Generate Zero-Mean Samples (Standard Normal N(0, 1))
+    W = randn(dimension, N)
+    
+    # Scale and Shift
+    X_zero_mean = std_dev .* W
+    X_matrix = X_zero_mean .+ μ
+
+    X = Vector{Vector{Float64}}(undef, N)
+    
+    for n in 1:N
+        # X_matrix[:, n] extracts the n-th sample vector (column)
+        X[n] = X_matrix[:, n] 
+    end
+
+    return X::Vector{Vector{Float64}} 
+end
+
+```
+##### Problem3.jl
+```julia; eval = false
+using LinearAlgebra
+using Statistics
+
+#FOR EACH DATA POINT IN 𝐱ₙ COMPUTE THE DISTANCE TO EACH CENTER IN 𝛍ₖ and indicate which center is the closest to each data point
+function compDistInd(𝐱ₙ::Vector{Vector{Float64}},𝛍ₖ::Vector{Vector{Float64}})
+    N = length(𝐱ₙ) # Number of data points (rows)
+    K = length(𝛍ₖ) # Number of centers (columns)
+
+    d = zeros(Float64, (N, K)) 
+    r = fill(false, N, K)        #allocate memeory for r
+
+      for n in 1:N
+        # Temporary array to hold distances d_n1, d_n2, ..., d_nK for the current point
+        dist_to_centers = zeros(Float64, K) 
+
+        # 1. Compute all distances d_nk (Line 2 of Algorithm 2)
+        for k in 1:K
+            # Calculate the Euclidean distance (L2 norm) between x_n and μ_k
+            distance = norm(𝐱ₙ[n] - 𝛍ₖ[k])
+            d[n, k] = distance
+            dist_to_centers[k] = distance
+        end
+        
+        # 2. Find the closest center k* (Line 3 of Algorithm 2)
+        # argmin returns the index (k*) that minimizes the value.
+        closest_center_index = argmin(dist_to_centers)
+        
+        # 3. Set the indicator r_nk* to true
+        r[n, closest_center_index] = true
+    end
+
+  return d::Matrix{Float64},r::Matrix{Bool}
+end
+
+
+```
+##### Problem4.jl
+```julia; eval = false
+using Plots
+using LinearAlgebra
+using Statistics
+using Random
+using Images
+
+function myKmeansBatch(𝐱ₙ::Vector{Vector{Float64}}, 𝛍ₖ::Vector{Vector{Float64}}; maxIter=50, verbose=true)
+    N = length(𝐱ₙ) # Number of data points
+    K = length(𝛍ₖ) # Number of clusters (determined by the input 𝛍ₖ size)
+    D = length(𝐱ₙ[1]) # Dimension of data points
+
+    # --- INITIALIZATION: Mutate input 𝛍ₖ to be a random subset of K data points ---
+    if K > N
+        error("K cannot be greater than the number of data points N.")
+    end
+    
+    # Select K unique random indices from the data set 
+    initial_indices = Random.shuffle(1:N)[1:K]
+    
+    # Mutate the input 𝛍ₖ vector in place to hold the initial centers
+    for k in 1:K
+        # Use deepcopy to ensure 𝛍ₖ[k] is not just a reference to 𝐱ₙ[initial_indices[k]]
+        𝛍ₖ[k] = deepcopy(𝐱ₙ[initial_indices[k]])
+    end
+
+    iteration = 0
+    # Initialize assignment matrix 'r' (will be updated and returned)
+    r = fill(false, N, K) 
+
+    if verbose
+        println("\nStarting K-means with K=$K...")
+    end
+
+    # --- ITERATIVE LOOP (Algorithm 3, Line 2: while not converged) ---
+    for outer iteration ∈ 1:maxIter
+        if verbose
+            println("Iteration: $(iteration)")
+        end
+
+        # 1. E-Step (Assignment: Line 3 of Algorithm 3)
+        # Get the new assignments based on current centers
+        _, r_new = compDistInd(𝐱ₙ, 𝛍ₖ)
+
+        # Store old centers for convergence check
+        μ_old = deepcopy(𝛍ₖ)
+
+        # 2. M-Step (Update: Line 4 of Algorithm 3)
+        μ_updated = false 
+        
+        # Iterate over each cluster center k
+        for k in 1:K
+            assigned_indices = findall(r_new[:, k])
+            count_nk = length(assigned_indices) 
+            
+            if count_nk == 0
+                # Stability Fix: Reinitialize the centroid (μk) to a new random data point
+                if verbose
+                    println("  -- Stability Warning: Cluster $k is empty. Reinitializing its location.")
+                end
+                
+                new_idx = rand(1:N) 
+                # Mutate the input 𝛍ₖ in place for the stability fix
+                𝛍ₖ[k] = deepcopy(𝐱ₙ[new_idx]) 
+                μ_updated = true
+            else
+                # Centroid Update: μk = (sum rnk * xn) / (sum rnk)
+                sum_xn = sum(𝐱ₙ[i] for i in assigned_indices)
+                μ_new_k = sum_xn ./ count_nk 
+                
+                # Check if the new center is different from the old center
+                if norm(μ_new_k - 𝛍ₖ[k]) > 1e-9
+                    # Mutate the input 𝛍ₖ in place
+                    𝛍ₖ[k] = μ_new_k
+                    μ_updated = true
+                end
+            end
+        end
+
+        # --- CONVERGENCE CHECK (Line 2: while not converged) ---
+        if !μ_updated
+            if verbose
+                println("\nK-means converged after $(iteration) iterations.")
+            end
+            break
+        end
+
+    end # end while loop
+
+    # Final assignment based on the last set of converged centers (to return 'r')
+    _, r = compDistInd(𝐱ₙ, 𝛍ₖ)
+    
+    # Explicit return with required type annotation
+    return 𝛍ₖ::Vector{Vector{Float64}}, r::Matrix{Bool}, iteration::Int64
+end
+```
+##### Problem5.jl
+```julia; eval = false
+using LinearAlgebra, Random, Statistics
+
+function myKmeansOnline(𝐱ₙ::Vector{Vector{Float64}}, 𝛍ₖ::Vector{Vector{Float64}}, η::Float64; 
+                        maxIter::Int=50, tol::Float64=1e-5, verbose::Bool=true)
+    
+    N = length(𝐱ₙ)
+    K = length(𝛍ₖ)
+    
+    if N == 0 || K <= 0 || K > N
+        error("Invalid input: N must be > 0, and 0 < K <= N.")
+    end
+
+    # 1. INITIALIZATION: Overwrite input 𝛍ₖ with K random unique data points (REQUIRED)
+    initial_indices = Random.shuffle(1:N)[1:K]
+    resize!(𝛍ₖ, K) # Ensure 𝛍ₖ has exactly K slots (though it should based on length check)
+    for k in 1:K
+        # Deepcopy the data vector into the centroid container
+        𝛍ₖ[k] = deepcopy(𝐱ₙ[initial_indices[k]])
+    end
+
+    # Store centroids before the epoch begins for movement calculation
+    𝛍ₖ_before_epoch = deepcopy(𝛍ₖ)
+    
+    epoch = 0
+    
+    for outer epoch ∈ 1:maxIter
+        
+        # 2. DATASET ORDER RANDOMIZATION: Shuffle data order before each epoch
+        shuffled_indices = Random.shuffle(1:N)
+        
+        total_centroid_movement = 0.0
+        
+        # Store centers before this epoch for the convergence check
+        𝛍ₖ_before_epoch_start = deepcopy(𝛍ₖ)
+
+        # 3. ONLINE UPDATE LOOP (Iterate through all data points in random order)
+        for n_idx in shuffled_indices
+            x_n = 𝐱ₙ[n_idx]
+            
+            # Find the index I of the closest centroid (E-step)
+            min_dist_sq = Inf
+            I = -1
+            
+            for k in 1:K
+                # Calculate squared Euclidean distance: ||xn - μk||²
+                dist_sq = norm(x_n - 𝛍ₖ[k])^2
+                if dist_sq < min_dist_sq
+                    min_dist_sq = dist_sq
+                    I = k
+                end
+            end
+            
+            # Update the closest centroid (Online M-step / SGD-like update)
+            # 𝛍_I_new = 𝛍_I_old + η * (x_n - 𝛍_I_old)
+            error_vector = x_n - 𝛍ₖ[I]
+            𝛍ₖ[I] += η * error_vector # This performs the update in place
+        end
+        
+        # 4. CONVERGENCE CHECK (after one full epoch)
+        # Calculate the total distance moved by all centroids since the start of the epoch
+        for k in 1:K
+            movement = norm(𝛍ₖ[k] - 𝛍ₖ_before_epoch_start[k])
+            total_centroid_movement += movement
+        end
+        
+        if total_centroid_movement < tol
+            if verbose
+                println("Converged at Epoch $(epoch): Total movement ($total_centroid_movement) < Tolerance ($tol)")
+            end
+            break # Exit the while loop
+        end
+    
+    end # End of for epoch loop
+    
+    if verbose
+        print("The final centers: ")
+        println(𝛍ₖ)
+    end
+    
+    return 𝛍ₖ::Vector{Vector{Float64}}, epoch::Int64
+end
+```

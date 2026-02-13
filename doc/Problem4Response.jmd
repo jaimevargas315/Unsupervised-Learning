@@ -1,0 +1,297 @@
+## Problem 4
+
+#### Part a)
+
+#### Part b)
+```julia
+using Plots
+using LinearAlgebra
+using Statistics
+using Random
+using Plots
+using Images
+include("../src/Problem2.jl") 
+include("../src/Problem3.jl") 
+include("../src/Problem4.jl") 
+K_true = 2
+D_dim_task = 2
+Sigma2_task = 3.0
+μ_true = [[0.0, 0.0], [5.0, 5.0]]
+N_list = [10, 20, 30, 40, 50, 75, 100, 150, 250, 500]
+errors_b = Float64[]
+println("--- (b) Running Single Trial Error vs. N ---")
+
+for N_total in N_list
+    N_class = N_total ÷ 2
+    
+    # Data Generation
+    X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+    X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+    X_data = vcat(X1_samples, X2_samples)
+    
+    # K-means Execution
+    Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_true] 
+final_centers, _, _ = myKmeansBatch(X_data, Initial_centers, maxIter=100, verbose=false)
+    # Error Calculation (Matching Estimated to True Centers)
+    μ_hat_1 = final_centers[1]
+    μ_hat_2 = final_centers[2]
+
+    error1 = norm(μ_true[1] - μ_hat_1) + norm(μ_true[2] - μ_hat_2)
+    error2 = norm(μ_true[1] - μ_hat_2) + norm(μ_true[2] - μ_hat_1)
+    
+    min_error = min(error1, error2)
+    push!(errors_b, min_error)
+
+    println("N=$(N_total): Single Trial Error = $(round(min_error, digits=4))")
+end
+
+# Plotting
+p_b = plot(
+    N_list, 
+    errors_b, 
+    xlabel = "Number of Training Data Points (N)",
+    ylabel = "Total Centroid Recovery Error (Single Trial)",
+    title = "Part (b): K-means Error vs. Sample Size (Single Trial)",
+    seriestype = :scatter, 
+    marker = :circle,
+    line = (3, :solid),
+    label = "Recovery Error",
+    legend = :topright,
+    grid = :on
+)
+display(p_b)
+```
+#### Part c)
+```julia
+T=100        # Number of trials for averaging in part (c)
+avg_errors = Float64[] # Must be re-initialized for the new results
+println("\n--- (c) Running Averaged Trial Error vs. N (T=$T trials per N) ---")
+
+for N_total in N_list
+    N_class = N_total ÷ 2
+    total_error_N = 0.0
+    
+    for t in 1:T # T=100 trials loop
+        # 1. Data Generation (uses circGauss, μ_true, Sigma2_task)
+        X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+        X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+        X_data = vcat(X1_samples, X2_samples)
+        Random.shuffle!(X_data) 
+
+        # 2. K-means Execution (uses myKmeansBatch, K_true, D_dim_task)
+        Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_true] 
+        final_centers, _, _ = myKmeansBatch(X_data, Initial_centers, maxIter=100, verbose=false)
+
+        # 3. Error Calculation (uses norm, μ_true)
+        μ_hat_1 = final_centers[1]
+        μ_hat_2 = final_centers[2]
+
+        error1 = norm(μ_true[1] - μ_hat_1) + norm(μ_true[2] - μ_hat_2)
+        error2 = norm(μ_true[1] - μ_hat_2) + norm(μ_true[2] - μ_hat_1)
+        
+        total_error_N += min(error1, error2)
+    end
+    
+    avg_error_N = total_error_N / T
+    push!(avg_errors, avg_error_N)
+    println("N=$(N_total): Average Error = $(round(avg_error_N, digits=5))")
+end
+
+# Plotting (uses N_list, avg_errors)
+p_c = plot(
+    N_list, 
+    avg_errors, 
+    xlabel = "Number of Training Data Points (N)",
+    ylabel = "Average Total Centroid Recovery Error (T=$T Trials)",
+    title = "Part (c): K-means Error vs. Sample Size (Averaged)",
+    seriestype = :line, 
+    linewidth = 3,
+    marker = (:circle, 5),
+    label = "Average Error",
+    legend = :topright,
+    grid = :on
+)
+display(p_c)
+```
+
+#### Part d)
+```julia
+N_fixed = 50 
+T_trials = 500
+iter_counts = Int64[]
+println("\n--- (d) Running Convergence Analysis (N=$N_fixed, T=$T_trials) ---")
+
+for t in 1:T_trials
+    # 1. Data Generation (N=50)
+    N_class = N_fixed ÷ 2
+    X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+    X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+    X_data = vcat(X1_samples, X2_samples)
+    Random.shuffle!(X_data) 
+
+    # 2. K-means Execution
+    Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_true] 
+    
+    # Capture the iteration count (3rd return value)
+    _, _, iterations = myKmeansBatch(X_data, Initial_centers, maxIter=100, verbose=false)
+    
+    push!(iter_counts, iterations)
+end
+
+# 3. STATISTICAL ANALYSIS
+min_iter = minimum(iter_counts)
+max_iter = maximum(iter_counts)
+avg_iter = mean(iter_counts)
+
+println("\nConvergence Statistics (N=$N_fixed, T=$T_trials):")
+println("  Minimum Iterations: $min_iter")
+println("  Maximum Iterations: $max_iter")
+println("  Average Iterations: $(round(avg_iter, digits=2))")
+
+# 4. PLOTTING (Histogram)
+p_d = histogram(
+    iter_counts,
+    bins = 0.5:1.0:max_iter + 0.5, # Bins centered on integers
+    xlabel = "Number of Iterations to Converge",
+    ylabel = "Frequency (Count)",
+    title = "Part (d): K-means Convergence Iterations (N=$N_fixed)",
+    legend = false,
+    grid = :y
+)
+display(p_d)
+```
+#### Part e)
+```julia
+N_fixed_e = 500       # Fixed number of data points
+T_trials_e = 100      # Number of trials for averaging
+K_list = 2:10         # K ranges from 2 to 10
+
+function calcJ(D_nk::Matrix{Float64}, r::Matrix{Bool})
+    # Uses Boolean indexing to select only the squared distances corresponding 
+    # to the assigned cluster for each point, then sums them up.
+    return sum(D_nk[r])
+end
+
+avg_J_values = Float64[]
+println("\n--- (e) Running Objective Function J vs. K (N=$N_fixed_e, T=$T_trials_e) ---")
+
+# 1. Generate the single large dataset outside the K-loop (optional, but saves time)
+N_class = N_fixed_e ÷ 2
+X1_samples_e = circGauss(N_class, μ_true[1], Sigma2_task)
+X2_samples_e = circGauss(N_class, μ_true[2], Sigma2_task)
+X_data_e = vcat(X1_samples_e, X2_samples_e)
+
+for K in K_list
+    total_J_K = 0.0
+    
+    for t in 1:T_trials_e
+        # Shuffle data for a new random trial (ensures fresh initialization)
+        Random.shuffle!(X_data_e) 
+        
+        # 2. K-means Execution
+        Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K] 
+        final_centers, final_r, _ = myKmeansBatch(X_data_e, Initial_centers, maxIter=100, verbose=false)
+        
+        # 3. Calculate Final J value
+        # Recalculate D_nk based on the final centers for accurate J calculation
+        D_nk, _ = compDistInd(X_data_e, final_centers)
+        J_value = calcJ(D_nk, final_r) 
+        
+        total_J_K += J_value
+    end
+    
+    avg_J_K = total_J_K / T_trials_e
+    push!(avg_J_values, avg_J_K)
+    println("K=$K: Average J = $(round(avg_J_K, digits=2))")
+end
+
+# 4. PLOTTING
+p_e = plot(
+    collect(K_list), 
+    avg_J_values, 
+    xlabel = "Number of Centroids (K)",
+    ylabel = "Average Objective Function Value (J)",
+    title = "Part (e): K-means Cost Function vs. K (N=$N_fixed_e)",
+    seriestype = :line, 
+    linewidth = 3,
+    marker = (:circle, 5),
+    label = "Average Cost J",
+    legend = false,
+    grid = :y
+)
+display(p_e)
+```
+#### Part f)
+```julia
+
+function plot_clusters(X_data::Vector{Vector{Float64}}, r::Matrix{Bool}, 
+                       final_centers::Vector{Vector{Float64}}, run_num::Int)
+    
+    K = size(r, 2)
+    labels = [k for n in 1:size(r, 1) for k in 1:K if r[n, k]] # Convert r to vector labels
+    
+    # Extract coordinates for plotting
+    x_coords = [p[1] for p in X_data]
+    y_coords = [p[2] for p in X_data]
+    
+    # Extract center coordinates
+    cx_coords = [c[1] for c in final_centers]
+    cy_coords = [c[2] for c in final_centers]
+    
+    p = scatter(x_coords, y_coords, 
+                group = labels,
+                marker = (:circle, 3), 
+                alpha = 0.6,
+                legend = :none,
+                title = "Run $run_num: K=5 Clustering (Different Initialization)",
+                xlabel = "Dimension 1",
+                ylabel = "Dimension 2")
+    
+    # Overlay the final centroids
+    scatter!(p, cx_coords, cy_coords, 
+             marker = (:star5, 12, :black, 0.8), 
+             label = "Centroids",
+             series_annotations = text.(1:K, :bottom, :black))
+             
+    display(p)
+    return p
+end
+
+N_fixed_f = 500       # Fixed number of data points
+K_fixed_f = 5         # Fixed number of clusters
+num_runs = 3          # Perform clustering 3 times
+
+println("\n--- (f) Analyzing Effect of Initialization (N=$N_fixed_f, K=$K_fixed_f, 3 Runs) ---")
+
+# 1. Generate the single, fixed dataset
+N_class = N_fixed_f ÷ 2
+X1_samples_f = circGauss(N_class, μ_true[1], Sigma2_task)
+X2_samples_f = circGauss(N_class, μ_true[2], Sigma2_task)
+X_data_f = vcat(X1_samples_f, X2_samples_f) 
+# Note: The data is generated ONCE, but shuffled before each run to ensure 
+# the initial center selection (which uses shuffle/rand) is different.
+
+J_results = Float64[]
+
+for run in 1:num_runs
+    # The crucial step: The random shuffle here ensures the 
+    # myKmeansBatch initialization (selecting K random points) is different each time.
+    Random.shuffle!(X_data_f) 
+    
+    # 2. K-means Execution
+    Initial_centers = [Vector{Float64}(undef, D_dim_task) for _ in 1:K_fixed_f] 
+    final_centers, final_r, _ = myKmeansBatch(X_data_f, Initial_centers, maxIter=100, verbose=false)
+    
+    # 3. Calculate Objective Function J for this run (for analysis)
+    D_nk, _ = compDistInd(X_data_f, final_centers)
+    J_value = calcJ(D_nk, final_r) 
+    push!(J_results, J_value)
+    
+    println("Run $run: Final J Value = $(round(J_value, digits=2))")
+    
+    # 4. Visualization (Produces 3 figures)
+    plot_clusters(X_data_f, final_r, final_centers, run)
+end
+
+println("\nSummary of J values: $J_results")
+```

@@ -1,0 +1,41 @@
+## Problem 3
+```julia
+include("../src/Problem3.jl")
+# Define a small dataset (N=3 data points, D=2 dimensions)
+X_data = [
+    [1.0, 1.0],  # Point 1 (near μ1)
+    [8.0, 9.0],  # Point 2 (near μ2)
+    [3.0, 2.0]   # Point 3 (closer to μ1)
+]
+
+# Define K=2 cluster centers (μ1, μ2)
+Mu_centers = [
+    [2.0, 2.0],  # Center 1
+    [7.0, 7.0]   # Center 2
+]
+
+# Run the algorithm
+distances, indicators = compDistInd(X_data, Mu_centers)
+
+println("--- Test compDistInd Function ---")
+
+println("\nData Points (X_data):")
+display(X_data)
+
+println("\nCluster Centers (Mu_centers):")
+display(Mu_centers)
+
+println("\nDistance Matrix (d) [Row n is point n, Column k is center k]:")
+# Expected d[1, 1] = ||[1, 1] - [2, 2]|| = sqrt(1^2 + 1^2) = 1.414
+# Expected d[1, 2] = ||[1, 1] - [7, 7]|| = sqrt(6^2 + 6^2) = 8.485
+# Expected assignment for Point 1 is Center 1
+display(round.(distances, digits=3)) 
+
+println("\nIndicator Matrix (r) [True indicates closest center]:")
+# Expected r:
+# [True False]
+# [False True]
+# [True False]
+display(indicators)
+
+```

@@ -1,0 +1,52 @@
+## Problem 1
+
+```julia; echo=false
+# Complies the functions from src/Project_Datascience.jl
+# Include in all .jmd that use a function stored in the src folder
+filename = joinpath(@__DIR__, "..", "src", "Project_UnsupervisedLearning.jl")
+include(filename);
+```
+
+#### Part a)
+```julia
+using Plots
+include("../src/Problem1.jl")
+# 1. Define Data and Bin Sizes
+data = randn(1000) # 1000 points from a Gaussian distribution
+# Define three different bin sizes to compare: coarse, medium, and fine
+bin_sizes = [5, 50, 500] 
+
+# Initialize an array to hold the plots
+all_plots = []
+
+# 2. Loop Through Bin Sizes
+for num_bins in bin_sizes
+    # A. Run the histogram function with the current bin size
+    bin_counts, bin_centers = histo(data, num_bins)
+
+    # B. Create a plot for the current iteration
+    plot_title = "Bins = $num_bins"
+    
+    p = plot(bin_centers, bin_counts, 
+             seriestype = :bar,
+             linewidth = 0,
+             fillalpha = 0.7,
+             legend = false,
+             xlabel = "Value",
+             ylabel = "Count",
+             title = plot_title
+    )
+    
+    # C. Store the generated plot
+    push!(all_plots, p)
+end
+```
+#### Part b)
+```julia
+# 3. Display All Plots Side-by-Side
+# The `plot` function can arrange multiple plots using the `layout` keyword
+plot(all_plots..., layout = (length(bin_sizes),1), size = (1200, 1000)) 
+
+# accuracy of histogram increases with number of bins
+# but too many bins can lead to overfitting and noise
+```

@@ -1,0 +1,131 @@
+## Problem 5
+
+#### Part a)
+```julia
+
+using Plots
+using LinearAlgebra
+using Random
+using Statistics
+include("../src/Problem2.jl")
+include("../src/Problem5.jl")
+
+K_true = 2                # True number of clusters
+D_dim = 2                 # Dimension of data
+Sigma2_task = 3.0         # Variance (σ²) for both distributions
+μ_true = [[0.0, 0.0], [5.0, 5.0]] # True centers
+N_total = 500             # Total number of data points
+N_class = N_total ÷ 2     # Samples per class
+K_online = K_true         # Number of clusters for K-means
+
+eta_test = 0.1            # Initial learning rate (η)
+maxEpochs_test = 1000     # Increased max epochs for safety
+threshold_test = 1e-6     # Tighter convergence threshold
+verbose_test = true
+avg_epochs_list = Float64[]
+
+println("Generating data set (N=$N_total, K=$K_true, σ²=$Sigma2_task)...")
+X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+X_data = vcat(X1_samples, X2_samples)
+Random.shuffle!(X_data) # Shuffle data set for initial randomness
+
+# --- Initial Centroids Setup ---
+# The myKmeansOnline function initializes the centers internally, 
+# but it requires a pre-sized container 𝛍ₖ.
+initial_μ_k_container = [Vector{Float64}(undef, D_dim) for _ in 1:K_online]
+
+# --- Run Online K-means ---
+println("\nStarting Online K-means...")
+final_centers, epochs_taken = myKmeansOnline(
+    X_data, 
+    initial_μ_k_container, 
+    eta_test; 
+    maxIter=maxEpochs_test, 
+    tol=threshold_test, 
+    verbose=verbose_test
+)
+
+println("\n--- Results Summary ---")
+println("Online K-means converged in $epochs_taken epochs.")
+println("Final Centroids (μ̂):")
+for (i, center) in enumerate(final_centers)
+    println("  μ̂$i: $(round.(center, digits=4))")
+end
+println("\nTrue Centroids (μ):")
+for (i, center) in enumerate(μ_true)
+    println("  μ$i: $(round.(center, digits=4))")
+end
+
+
+T_trials_b = 30           # Number of trials for averaging
+maxEpochs_b = 100         # Maximum limit for epochs
+threshold_b = 1e-2        # Fixed convergence threshold
+verbose_b = false         # Disable verbose output inside the loop
+# Logarithmic range of eta: 1e-6, 1e-5.5, 1e-5, ..., 1e-0 (13 points)
+eta_list = 10.0 .^ range(-6.0, stop=0.0, length=13) 
+avg_epochs_list = Float64[]
+# Find the optimal eta (the one resulting in the minimum average epochs)
+
+for eta in eta_list
+    total_epochs_eta = 0
+    
+    for t in 1:T_trials_b
+        # 1. Data Generation (Generate fresh data for each trial for robustness)
+        X1_samples = circGauss(N_class, μ_true[1], Sigma2_task)
+        X2_samples = circGauss(N_class, μ_true[2], Sigma2_task)
+        X_data = vcat(X1_samples, X2_samples)
+        Random.shuffle!(X_data) 
+        
+        # 2. Initial Centroids Setup (Container for initialization inside the function)
+        initial_μ_k_container = [Vector{Float64}(undef, D_dim) for _ in 1:K_online]
+
+        # 3. Run Online K-means
+        _, epochs_taken = myKmeansOnline(
+            X_data, 
+            initial_μ_k_container, 
+            eta; 
+            maxIter=maxEpochs_b, 
+            tol=threshold_b, 
+            verbose=verbose_b
+        )
+        total_epochs_eta += epochs_taken
+    end
+    
+    avg_epochs = total_epochs_eta / T_trials_b
+    push!(avg_epochs_list, avg_epochs)
+    println("η = $eta: Avg Epochs = $(round(avg_epochs, digits=2))")
+end
+
+min_avg_epochs = minimum(avg_epochs_list)
+optimal_idx = findfirst(x -> x == min_avg_epochs, avg_epochs_list)
+optimal_eta = eta_list[optimal_idx]
+
+p_eta = plot(
+    eta_list, 
+    avg_epochs_list, 
+    xlabel = "Learning Rate η (Log Scale)",
+    ylabel = "Average Epochs to Converge (30 Trials)",
+    title = "Part (b): Online K-means Convergence Speed vs. η",
+    xscale = :log10, # Crucial for visualizing the wide range of eta
+    seriestype = :line, 
+    linewidth = 3,
+    marker = (:circle, 5),
+    label = "Avg Epochs",
+    legend = :bottomright,
+    grid = :on
+)
+
+# Annotate the optimal eta point on the plot
+scatter!(
+    p_eta, [optimal_eta], [min_avg_epochs], 
+    marker = (:star5, 12, :red, 0.8), 
+        label = "Optimal η = $(string(optimal_eta))"
+)
+
+display(p_eta)
+
+println("\n--- Optimal η Result ---")
+println("The optimal learning rate η is: $(string(optimal_eta))")
+println("Resulting in the minimum average epochs: $(round(min_avg_epochs, digits=2))")
+```

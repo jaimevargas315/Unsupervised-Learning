@@ -1,0 +1,142 @@
+## Problem 6
+
+using Plots
+using LinearAlgebra
+using Statistics
+using Random
+using Images
+using Printf 
+
+include("../src/Problem4.jl") 
+include("../src/Problem2.jl") 
+include("../src/Problem3.jl") 
+
+const D_DIM = 3              # RGB color space is 3-dimensional (R, G, B)
+const MAX_ITER = 50          # Max iterations for Batch K-means
+const K_VALUES = [4, 8, 16]  # K values for image segmentation
+
+const FILENAME_1 = joinpath("data", "machine-learning-1.png") # Part a
+const FILENAME_2 = joinpath("data", "Nature-Brain.png")       # Part b
+const FILENAME_3 = joinpath("data", "nature-1.png")           # Part c
+
+"""
+    image_to_vectors(img)
+
+Converts a loaded color image into a Vector of Vectors (Xn), 
+where each inner vector is a 3D [R, G, B] pixel.
+"""
+function image_to_vectors(img)
+    # 1. Convert to a standard Float64 channel view and flatten
+    img_float = Float64.(channelview(img))
+    
+    # 2. Reshape: Flatten the image array into a 3 x N matrix (Channels x Pixels)
+    R, C = size(img)
+    # We take channels 1:3 (R, G, B) and ignore the 4th (Alpha) if it exists.
+    data_matrix = reshape(img_float[1:3, :, :], 3, R * C) 
+    
+    # 3. Convert to Vector of Vectors (N vectors of 3D points)
+    Xn = [data_matrix[:, i] for i in 1:size(data_matrix, 2)]
+    return Xn
+end
+
+"""
+    segment_image(k::Int, X_data::Vector{Vector{Float64}}, img::Matrix)
+
+Performs Batch K-means clustering and reconstructs the image.
+"""
+function segment_image(k::Int, X_data::Vector{Vector{Float64}}, img::Matrix)
+    N = length(X_data)
+    D = D_DIM
+    
+    # 1. Initialize Centroids (container for mutation)
+    Initial_centers = [Vector{Float64}(undef, D) for _ in 1:k] 
+    
+    # 2. Run Batch K-means 
+    final_centers, final_r, epochs = myKmeansBatch(X_data, Initial_centers, maxIter=MAX_ITER, verbose=false)
+    
+    # 3. Reconstruct Image Data (Vector Quantization)
+    R, C = size(img)
+    segmented_data_vectors = Vector{Vector{Float64}}(undef, N)
+    
+    # Replace each original pixel with its assigned centroid
+    for n in 1:N
+        assigned_k = findfirst(final_r[n, :])
+        segmented_data_vectors[n] = final_centers[assigned_k]
+    end
+    
+    # 4. Convert back to image format
+    segmented_data_matrix = hcat(segmented_data_vectors...)
+    segmented_channels = reshape(segmented_data_matrix, D, R, C)
+    
+    # Get the component type (e.g., N0f8) from the original image element type
+    ComponentType = eltype(eltype(img))
+    
+    # Force the color view to RGB (3-channel) and convert to Matrix
+    color_view = colorview(RGB{ComponentType}, ComponentType.(segmented_channels))
+    segmented_image = convert(Matrix, color_view)
+    
+    return segmented_image, epochs
+end
+
+"""
+    run_segmentation_task(filename::String, plot_title_prefix::String)
+
+Loads an image, performs Batch K-means segmentation for all K_VALUES, and returns a plot object.
+"""
+function run_segmentation_task(filename::String, plot_title_suffix::String)
+    # 1. Load the Image
+    println("Loading image: $filename...")
+    local img_original
+    try
+        img_original = load(filename) 
+    catch e
+        println("ERROR: Could not load the image file '$filename'.")
+        rethrow(e)
+    end
+
+    # 2. Prepare Data
+    X_data = image_to_vectors(img_original)
+
+    # 3. Perform Segmentation for K=4, K=8, and K=16
+    segmented_plots = Any[]
+    push!(segmented_plots, plot(img_original, title="Original - $(plot_title_suffix)"))
+
+    algorithm_name = "Batch K-means"
+    
+    for k in K_VALUES
+        segmented_image, epochs = segment_image(k, X_data, img_original)
+        println("K=$k ($algorithm_name): Segmentation complete in $epochs epochs.")
+        
+        # Calculate bits per pixel (log2(K))
+        bits_per_pixel = round(log2(k), digits=0) 
+        title_str = "K=$k ($(Int(bits_per_pixel)) bits/pixel). Epochs: $epochs"
+        push!(segmented_plots, plot(segmented_image, title=title_str))
+    end
+
+    # 4. Visualization
+    plot_obj = plot(
+        segmented_plots...,
+        layout = (2, 2),
+        size = (1000, 800),
+        plot_title = "Batch K-means Segmentation Results for $(plot_title_suffix)",
+        legend = false
+    )
+    return plot_obj
+end
+#### Part a)
+
+p_batch1 = run_segmentation_task(FILENAME_1, "Image 1: Machine Learning")
+display(p_batch1)
+
+#### Part b)
+p_batch2 = run_segmentation_task(FILENAME_2, "Image 2: Nature Brain")
+display(p_batch2)
+#### Part c)
+p_batch3 = run_segmentation_task(FILENAME_3, "Image 3: Nature Scene")
+display(p_batch3)
+#### Part d)
+
+
+#### Part e)
+
+#### Part f)
